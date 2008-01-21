@@ -1,0 +1,3 @@
+; $Id $
+name = This Day In History
+description = "Display historical events that happened on this day."

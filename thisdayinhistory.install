@@ -1,0 +1,55 @@
+<?php
+// $Id$
+
+function thisdayinhistory_install() {
+	switch ($GLOBALS['db_type']) {
+		case 'mysql':
+		case 'mysqli':
+			db_query("
+			  CREATE TABLE {thisdayinhistory} (
+			    vid INT(10) unsigned NOT NULL default '0',
+			    nid INT(10) unsigned NOT NULL default '0',
+			    month INT(2) unsigned NOT NULL default '0',
+			    day INT(2) unsigned NOT NULL default '0',
+			    year INT(4) unsigned NOT NULL default '0',
+          isodate DATE,
+          promote INTEGER NOT NULL default false,
+			    PRIMARY KEY (vid, nid),
+			    KEY `node_thisdayinhistory_nid` (nid)
+			  )");
+				
+			db_query('
+				CREATE TABLE {thisdayinhistory_blocks} (
+					bid INTEGER NOT NULL PRIMARY KEY,
+					name VARCHAR(255) NOT NULL UNIQUE,
+					header VARCHAR(255),
+          header_format INTEGER UNSIGNED NOT NULL,
+					block_type INTEGER NOT NULL,
+					uid_filter TEXT NOT NULL,
+					tid_filter TEXT NOT NULL,
+          nid_filter TEXT NOT NULL,
+          rid_filter TEXT NOT NULL,
+					vid INTEGER NOT NULL
+				)');
+			break;
+		case 'pgsql':
+			// TODO
+			break;
+	}
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function thisdayinhistory_uninstall() {
+	switch ($GLOBALS['db_type']) {
+		case 'mysql':
+		case 'mysqli':
+		  db_query('DROP TABLE {thisdayinhistory}');
+		  db_query('DROP TABLE {thisdayinhistory_blocks}');
+			break;
+		case 'pgsql':
+			// TODO
+			break;
+	}
+}

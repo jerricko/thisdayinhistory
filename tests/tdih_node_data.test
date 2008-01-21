@@ -1,0 +1,90 @@
+<?php
+// $Id$
+
+class ThisDayInHistoryNodeDataTest extends DrupalTestCase {
+
+  function get_info() {
+    return array(
+      'name' => t('Node Data Tests'),
+      'desc' => t('Test suite to insure data integrity for node create/update/delete operations'),
+      'group' => t('This Day in History module'),
+    );
+  }
+
+  /**
+   * Tests in this file are designed to insure data is getting stored and retrieved
+   * correctly. Permissions and security are tested in the permissions test suite.
+   * Tests in this test suite are therefore done with the This Day in History Admin
+   * permission.
+   */
+
+  /**
+   * Test Setup
+   * - Admin user: $this->admin_user
+   */
+  function setUp() {
+    // Create the admin user for the tests
+    $permissions = array('administer this day in history');
+    $admin_user = $this->drupalCreateUserRolePerm($permissions);
+    $this->admin_user = $admin_user;
+    
+    // Always call the setUp() function from the parent class.
+    parent::setUp();
+  }
+
+
+  /**
+   * Convenience function for node creation
+   */
+  function _creationFieldArray() {
+    $fields = array();
+    $fields['title'] = $this->randomName(32);
+    $fields['body']  = $this->randomName(32) . ' ' . $this->randomName(32);
+    $fields['month'] = '10';
+    $fields['year']  = '2001';
+    $fields['day']   = '18';
+    return $fields;
+  }
+
+
+  /**
+   * Create a node via the web interface and verify the data was stored correctly
+   */
+  function testTDiHEventCreation() {
+    // Create logged in context
+    $this->drupalLoginUser($this->admin_user);
+
+    // Create the test node  
+    $edit = $this->_creationFieldArray();
+    $this->drupalPostRequest('node/add/thisdayinhistory', $edit, 'Submit');
+    
+    // Verify it was created
+    $this->assertWantedRaw(t('Your %post has been created.', array ('%post' => 'Historical event')), 'Page created');
+    
+    // Retrieve and verify the node from the database
+    $node = node_load(array('title' => $edit['title']));
+    $this->assertNotNull($node, 'Node found in database. %s');
+    
+    // Test we got back what we stored
+    $isodate = $edit['year'] . '-' . $edit['month'] . '-' . $edit['day'];
+    $this->assertEqual($node->year, $edit['year'],
+      'Node year field not retrieved as stored, expected ' . $edit['year'] . ', got ' . $node->year);
+    $this->assertEqual($node->month, $edit['month'],
+      'Node month field not retrieved as stored, expected ' . $edit['month'] . ', got ' . $node->month);
+    $this->assertEqual($node->day, $edit['day'],
+      'Node day field not retrieved as stored, expected ' . $edit['day'] . ', got ' . $node->day);
+    $this->assertEqual($node->isodate, $isodate,
+      'Node isodate field not retrieved as stored, expected ' . $isodate . ', got ' . $node->isodate);
+  }
+
+
+  // Test To-Do list
+  // - Create function
+  //   Find out how to deal with checkboxes
+  // - Update function
+  // - Delete function
+  //   Must insure the data is removed from the TDiH table
+
+
+}
+?>
