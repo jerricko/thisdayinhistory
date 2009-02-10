@@ -2,21 +2,26 @@
 // $Id$
 
 /**
+ * @file
+ * Main module file for This Day in History module.
+ */
+
+/**
  * Implementation of hook_help().
  */
-function thisdayinhistory_help($section) {
-  switch ($section) {
+function thisdayinhistory_help($path, $arg) {
+  switch ($path) {
     case 'admin/help#thisdayinhistory':
       // This description shows up when users click "create content."
       $help_text = '<p>The <em>This Day in History</em> module allows users with the appropriate permissions to enter historical events. The historical events can be displayed in any number of Administrator defined blocks. Blocks can be configured to display historical events based on different criteria, such as taxonomy terms.</p>';
       return t($help_text);
-			break;
+      break;
   }
 }
 
 
 /**
- * Implementation of hook_node_info()
+ * Implementation of hook_node_info().
  */
 function thisdayinhistory_node_info() {
   return array(
@@ -34,29 +39,27 @@ function thisdayinhistory_node_info() {
  */
 function thisdayinhistory_perm() {
   return array(
-		'administer this day in history',
-  	'create historical events',
-		'edit own historical events',
-		'promote historical events to block'
-		);
+    'administer this day in history',
+    'create historical events',
+    'edit own historical events',
+    'promote historical events to block'
+  );
 }
 
 
 /**
  * Implementation of hook_access().
  */
-function thisdayinhistory_access($op, $node) {
-  global $user;
-
+function thisdayinhistory_access($op, $node, $account) {
   // Admins can do anything
-  if (user_access('administer this day in history')) return TRUE;
+  if (user_access('administer this day in history', $account)) return TRUE;
 
   if ($op == 'create') {
-    return user_access('create historical events');
+    return user_access('create historical events', $account);
   }
 
   if ($op == 'update' || $op == 'delete') {
-    if (user_access('edit own historical events') && ($user->uid == $node->uid)) {
+    if (user_access('edit own historical events', $account) && ($account->uid == $node->uid)) {
       return TRUE;
     }
   }
@@ -66,45 +69,51 @@ function thisdayinhistory_access($op, $node) {
 /**
  * Implementation of hook_menu().
  */
-function thisdayinhistory_menu($may_cache) {
-  global $user;
-
+function thisdayinhistory_menu() {
   $items = array();
 
-  if ($may_cache) {
-    $items[] = array(
-      'path' => 'admin/settings/thisdayinhistory',
-      'title' => t('This Day in History'),
-      'description' => t('Create and configure This Day in History blocks and configure options.'),
-      'access' => user_access('administer this day in history (TDIH)'),
-      'callback' => 'drupal_get_form',
-      'callback arguments' => array('_thisdayinhistory_admin_settings')
-    );
-    $items[] = array(
-      'path' => 'admin/settings/thisdayinhistory/overview',
-      'title' => t('Overview'),
-      'type' => MENU_DEFAULT_LOCAL_TASK,
-      'weight' => -1
-    );
-    $items[] = array(
-      'path' => 'admin/settings/thisdayinhistory/blocks',
-      'title' => t('Configure blocks'),
-      'callback' => 'drupal_get_form',
-      'callback arguments' => array('_thisdayinhistory_blocks'),
-      'type' => MENU_LOCAL_TASK
-    );
-    $items[] = array(
-      'path' => 'admin/settings/thisdayinhistory/delete', // Deletion confirmation
-      'title' => t('Delete TDIH block'),
-      'callback' => 'drupal_get_form',
-      'callback arguments' => array('_thisdayinhistory_block_delete'),
-      'type' => MENU_CALLBACK
-    );
-  }
+  $items['admin/settings/thisdayinhistory'] = array(
+    'title' => 'This Day in History',
+    'description' => 'Create and configure This Day in History blocks and configure options.',
+    'access callback' => 'user_access',
+    'access arguments' => array('administer this day in history'),
+    'page callback' => 'thisdayinhistory_admin_overview',
+    //'page arguments' => array('_thisdayinhistory_admin_settings'),
+    'file' => 'thisdayinhistory.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/settings/thisdayinhistory/overview'] = array(
+    'title' => 'Overview',
+    'description' => 'Create and configure This Day in History blocks and configure options.',
+    'access callback' => 'user_access',
+    'access arguments' => array('administer this day in history'),
+    'file' => 'thisdayinhistory.admin.inc',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -2
+  );
+  $items['admin/settings/thisdayinhistory/blocks'] = array(
+    'title' => 'Configure blocks',
+    'description' => 'Configure blocks.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('thisdayinhistory_blocks_configure'),
+    'access callback' => 'user_access',
+    'access arguments' => array('administer this day in history'),
+    'file' => 'thisdayinhistory.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+    'weight' => -1
+  );
+  $items['admin/settings/thisdayinhistory/blocks/delete'] = array(
+    'title' => 'Delete TDIH block',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('thisdayinhistory_block_delete_confirmation'),
+    'access callback' => 'user_access',
+    'access arguments' => array('administer this day in history'),
+    'file' => 'thisdayinhistory.admin.inc',
+    'type' => MENU_CALLBACK
+  );
 
   return $items;
 }
-
 
 
 /**
@@ -168,10 +177,10 @@ function thisdayinhistory_form(&$node) {
   );
 
   if (user_access('promote quotes to block')) {
-    $form['event_promote'] = array(
+    $form['blockdisplay'] = array(
       '#type' => 'checkbox',
       '#title' => t('Display in TDiH blocks'),
-      '#default_value' => (isset($node->tdih_promote) ? $node->tdih_promote : 1)
+      '#default_value' => (isset($node->blockdisplay) ? $node->blockdisplay : 1)
     );
   }
 
@@ -182,7 +191,22 @@ function thisdayinhistory_form(&$node) {
 /**
  * Implementation of hook_validate().
  */
-function thisdayinhistory_validate($node) {
+function thisdayinhistory_validate($node, &$form) {
+  $texterror = FALSE;
+  if (!is_numeric($node->year)) {
+    form_set_error('year', t('Year value must be entered as a integer'));
+    $texterror = TRUE;
+  }
+  if (!is_numeric($node->month)) {
+    form_set_error('month', t('Month value must be entered as a integer'));
+    $texterror = TRUE;
+  }
+  if (!is_numeric($node->day)) {
+    form_set_error('day', t('Day value must be entered as a integer'));
+    $texterror = TRUE;
+  }
+  if ($texterror) return;
+
   if ($node->month < 1) {
     form_set_error('month', t('Month value can not be set less than 1'));
     return;
@@ -192,27 +216,27 @@ function thisdayinhistory_validate($node) {
     return;
   }
 
-  $daysInMonth = array(0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
+  $days_in_month = array(0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
   if ($node->day < 1) {
     form_set_error('day', t('Day value can not be set less than 1'));
     return;
   }
-  if ( ($node->day < 1) || ($node->day > $daysInMonth[$node->month]) ) {
+  if ($node->day > $days_in_month[(int)$node->month]) {
     form_set_error('day', t('Day value is too large'));
     return;
   }
-
 }
+
 
 /**
  * Implementation of hook_insert().
  */
 function thisdayinhistory_insert($node) {
-	$isodate = $node->year . '-' . $node->month . '-' . $node->day;
+  $isodate = $node->year .'-'. $node->month .'-'. $node->day;
   db_query("INSERT INTO {thisdayinhistory}
-					 (vid, nid, month, day, year, isodate, promote)
-					 VALUES (%d, %d, '%d', %d, %d, '%s', %d)",
-					 $node->vid, $node->nid, $node->month, $node->day, $node->year, $isodate, $node->event_promote);
+          (vid, nid, month, day, year, isodate, blockdisplay)
+          VALUES (%d, %d, '%d', %d, %d, '%s', %d)",
+          $node->vid, $node->nid, $node->month, $node->day, $node->year, $isodate, $node->blockdisplay);
 }
 
 
@@ -225,10 +249,10 @@ function thisdayinhistory_update($node) {
     thisdayinhistory_insert($node);
   }
   else {
-		$isodate = $node->year . '-' . $node->month . '-' . $node->day;
+    $isodate = $node->year .'-'. $node->month .'-'. $node->day;
     db_query("UPDATE {thisdayinhistory}
-						 SET month = %d, day = %d, year = %d, isodate = '%s', promote = %d WHERE vid = %d",
-						 $node->month, $node->day, $node->year, $isodate, $node->event_promote, $node->vid);
+            SET month = %d, day = %d, year = %d, isodate = '%s', blockdisplay = %d WHERE vid = %d",
+            $node->month, $node->day, $node->year, $isodate, $node->blockdisplay, $node->vid);
   }
 }
 
@@ -248,7 +272,7 @@ function thisdayinhistory_delete($node) {
  */
 function thisdayinhistory_load($node) {
   $additions = db_fetch_object(
-    db_query('SELECT tdih.month, tdih.day, tdih.year, tdih.isodate, tdih.promote AS event_promote
+    db_query('SELECT tdih.month, tdih.day, tdih.year, DATE(tdih.isodate) as isodate, tdih.blockdisplay
              FROM {thisdayinhistory} tdih
              WHERE vid = %d', $node->vid)
   );
@@ -261,8 +285,9 @@ function thisdayinhistory_load($node) {
  */
 function thisdayinhistory_view($node, $teaser = FALSE, $page = FALSE) {
   $node = node_prepare($node, $teaser);
+  if (!$node->isodate) $node->isodate = $node->year .'-'. $node->month .'-'. $node->day;
   $node->content['thisdayinhistory'] = array(
-    '#value' => theme('thisdayinhistory_node_html', $node),
+    '#value' => theme('thisdayinhistory_node_field', $node),
     '#weight' => -1,
   );
 
@@ -280,34 +305,17 @@ function thisdayinhistory_block($op = 'list', $delta = 0, $edit = array()) {
     //
     case 'list':
       $blocks = array();
-      $result = db_query('SELECT tdihb.bid, tdihb.name FROM {thisdayinhistory_blocks} tdihb');
-      while ($block = db_fetch_object($result)) {
-        $blocks[$block->bid] = array('info' => t('TDiH') . ': ' . $block->name);
+      $block_list = db_query('SELECT tdihb.bid, tdihb.name FROM {thisdayinhistory_blocks} tdihb');
+      while ($block = db_fetch_object($block_list)) {
+        $blocks[$block->bid] = array('info' => t('TDiH') .': '. $block->name);
       }
       return $blocks;
-      
+
     //
     // View
     //
     case 'view':
-      $block = db_fetch_array(
-        db_query('SELECT tdihb.* FROM {thisdayinhistory_blocks} tdihb WHERE tdihb.bid = %d', $delta)
-      );
-      if (!$block) {
-        return NULL;
-      }
-
-      $eventnodes = thisdayinhistory_get_events($block);
-      
-      if (count($eventnodes) == 0) {
-        return NULL;
-      }
-      else {
-        return array(
-          'subject' => $block['name'],
-          'content' => thisdayinhistory_theme_block($block, $eventnodes)
-        );
-      }
+      return thisdayinhistory_get_block($delta);
 
     //
     // Configure
@@ -446,11 +454,11 @@ function thisdayinhistory_get_events($options = array()) {
   $day                   = date('j');
   $promote               = '1';
   $type                  = 0;
-  
+
   // Evaluate $options
   $added_joins           = '';
   $additional_conditions = '';
-  foreach($options as $name => $value) {
+  foreach ($options as $name => $value) {
     switch ($name) {
       case 'uid_filter':
         if ($value) {
@@ -466,7 +474,7 @@ function thisdayinhistory_get_events($options = array()) {
       case 'rid_filter':
         if ($value) {
           $added_joins .= "LEFT JOIN {users_roles} ur ON ur.uid = n.uid ";
-          $additional_conditions .= " AND ur.rid IN ($value) OR (" . DRUPAL_ANONYMOUS_RID . " IN ($value) AND n.uid = 0)";
+          $additional_conditions .= " AND ur.rid IN ($value) OR (". DRUPAL_ANONYMOUS_RID ." IN ($value) AND n.uid = 0)";
         }
         break;
       case 'promoted_only':
@@ -476,7 +484,7 @@ function thisdayinhistory_get_events($options = array()) {
       case 'day':
         $day = $value;
       case 'block_type':
-        switch($value) {
+        switch ($value) {
           case 0:
             $type = 'all';
             break;
@@ -495,7 +503,7 @@ function thisdayinhistory_get_events($options = array()) {
     WHERE tdih.month = %d AND tdih.day = %d
       AND n.status = 1
       AND n.type = 'thisdayinhistory'
-      AND tdih.promote = $promote
+      AND tdih.blockdisplay = $promote
       $additional_conditions
     ORDER BY tdih.year"
   );
@@ -506,7 +514,7 @@ function thisdayinhistory_get_events($options = array()) {
   while ($entry = db_fetch_object($queryresult)) {
     $nodelist[] = $entry->nid;
   }
-  
+
   if ($type == 'random') {
     $count = count($nodelist);
     if ($count > 0) {
@@ -516,180 +524,33 @@ function thisdayinhistory_get_events($options = array()) {
   }
 
   $renderednodes = array();
-  foreach ($nodelist as $nodeID) {
-    $renderednodes[] = node_prepare(node_load($nodeID), TRUE);
+  foreach ($nodelist as $node_id) {
+    $renderednodes[] = node_prepare(node_load($node_id), TRUE);
   }
 
   return $renderednodes;
 }
 
-
-/**
- *
- * Module Admin Functions
- *
- */
-
-/**
- * Admin settings screen
- */
-function _thisdayinhistory_admin_settings() {
-  $form = array();
-  $form['text'] = array(
-    '#type' => 'item',
-    '#title' => t('Content'),
-    '#value' => t('Historical events: @total',
-                  array('@total' => db_result(db_query("SELECT COUNT(*) FROM {node} n where type = 'thisdayinhistory'")))
-                 )
+function thisdayinhistory_get_block($delta) {
+  $block = db_fetch_array(
+    db_query('SELECT tdihb.* FROM {thisdayinhistory_blocks} tdihb WHERE tdihb.bid = %d', $delta)
   );
-
-  return system_settings_form($form);
-}
-
-
-/**
- * Displays a list of currently-defined blocks.
- */
-function _thisdayinhistory_blocks() {
-  $form = array();
-  $form['name'] = array(
-    '#type' => 'textfield',
-    '#size' => 32,
-    '#maxlength' => 64
-  );
-  $form['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Add block')
-  );
-
-  return $form;
-}
-
-
-/**
- * Renders the block list, including the "Add block" row.
- */
-function theme__thisdayinhistory_blocks($form) {
-  $header = array(t('Name'), t('Block ID'), t('Filters'), array('data' => t('Operations'), 'colspan' => 2));
-  $result = db_query('SELECT tdihb.* FROM {thisdayinhistory_blocks} tdihb ORDER BY tdihb.name');
-  $rows = array();
-
-  while ($block = db_fetch_object($result)) {
-    $filters = array();
-
-    if ($block->nid_filter) {
-      $filters[] = t('node');
-    }
-
-    if ($block->rid_filter) {
-      $filters[] = t('role');
-    }
-
-    if ($block->uid_filter) {
-      $filters[] = t('user');
-    }
-
-    if ($block->tid_filter) {
-      $filters[] = t('term');
-    }
-
-    $rows[] = array(
-      $block->name,
-      $block->bid,
-      implode(', ', (count($filters) ? $filters : array(t('none')))),
-      l(t('configure block'), "admin/build/block/configure/thisdayinhistory/$block->bid"),
-      l(t('delete block'), "admin/settings/thisdayinhistory/delete/$block->bid")
-    );
+  if (!$block) {
+    return NULL;
   }
 
-  $rows[] = array(
-    drupal_render($form['name']),
-    array('data' => drupal_render($form['submit']), 'colspan' => 4)
-  );
+  $eventnodes = thisdayinhistory_get_events($block);
 
-  $output = drupal_render($form);
-
-  if (count($rows)) {
-    $output .= theme('table', $header, $rows);
+  if (count($eventnodes) == 0) {
+    return NULL;
   }
   else {
-    $output .= theme('table', $header, array(array(array('data' => t('No blocks are defined.'), 'colspan' => 4))));
-  }
-
-  return $output;
-}
-
-
-/**
- * Validates that the new block name is valid.
- */
-function _thisdayinhistory_blocks_validate($form_id, $form_values) {
-  $name = trim($form_values['name']);
-
-  if (!$name) {
-    form_set_error('name', t('You must specify a valid block name.'));
-  }
-  else if (db_result(db_query("SELECT COUNT(*) FROM {thisdayinhistory_blocks} tdihb WHERE tdihb.name = '%s'", $name))) {
-    form_set_error('name', t('The block name %name already exists. Please choose another block name.', array('%name' => $name)));
+    return array(
+      'subject' => $block['name'],
+      'content' => theme('thisdayinhistory_block_content', $block, $eventnodes)
+    );
   }
 }
-
-
-/**
- * Creates the new block.
- *
- * @param $form_id
- *   The string specifying the form ID of the form that was submitted.
- * @param $form_values
- *   The array specifying the form values.
- */
-function _thisdayinhistory_blocks_submit($form_id, $form_values) {
-  db_query("INSERT INTO {thisdayinhistory_blocks}
-    (bid, name, block_type, nid_filter, rid_filter, uid_filter, tid_filter, vid, header, header_format)
-    VALUES (%d, '%s', 0, '', '', '', '', 0, '', 0)",
-    db_next_id('{thisdayinhistory_blocks}_bid'), trim($form_values['name']));
-}
-
-
-/**
- * Confirms the deletion a block.
- */
-function _thisdayinhistory_block_delete($bid) {
-  $block = db_fetch_object(db_query('SELECT tdihb.name FROM {thisdayinhistory_blocks} tdihb WHERE tdihb.bid = %d', $bid));
-
-  $form = array();
-  $form['bid'] = array(
-    '#type' => 'value',
-    '#value' => $bid
-  );
-  $form['block_name'] = array(
-    '#type' => 'value',
-    '#value' => $block->name
-  );
-
-  return confirm_form($form, t('Are you sure you want to delete the block %name?', array('%name' => $block->name)), 'admin/settings/thisdayinhistory/blocks', t('This action cannot be undone.'), t('Delete'), t('Cancel'));
-}
-
-/**
- * Deletes the specified block.
- *
- * @param $form_id
- *   The string specifying the form ID of the form that was submitted.
- * @param $form_values
- *   The array specifying the form values.
- *
- * @result
- *   A string specifying the page to which the user should be
- *   redirected (admin/settings/quotes/blocks).
- */
-Function _thisdayinhistory_block_delete_submit($form_id, $form_values) {
-  db_query("DELETE FROM {thisdayinhistory_blocks} WHERE bid = %d", $form_values['bid']);
-  drupal_set_message(t('The block %name has been removed.', array('%name' => $form_values['block_name'])));
-  cache_clear_all();
-
-  return 'admin/settings/thisdayinhistory/blocks';
-}
-
 
 
 /**
@@ -698,82 +559,40 @@ Function _thisdayinhistory_block_delete_submit($form_id, $form_values) {
  *
  */
 
+/**
+ * Implementation of hook_theme().
+ */
+function thisdayinhistory_theme() {
+  return array(
+    'thisdayinhistory_blocks_configure' => array(
+      'arguments' => array('form' => NULL),
+    ),
+    'thisdayinhistory_node_field' => array(
+      'file' => 'thisdayinhistory.module',
+      'arguments' => array(
+        'node' => NULL,
+      ),
+    ),
+    'thisdayinhistory_block_content' => array(
+      'template'  => 'thisdayinhistory-block-content',
+      'path'      => drupal_get_path('module', 'thisdayinhistory') .'/theme',
+      'arguments' => array(
+        'block' => NULL,
+        'node_list' => NULL,
+      ),
+    ),
+  );
+}
+
 
 /**
- * Default theme function for node html
+ * Default theme function for TDiH date field displayed with node
  */
-function theme_thisdayinhistory_node_html($node) {
-  $output = '<div class="thisdayinhistory_info">';
+function theme_thisdayinhistory_node_field($node) {
+  $output = '<div class="thisdayinhistory-date">';
   $output .= t('Date: %isodate', array('%isodate' => check_plain($node->isodate)));
   $output .= '</div>';
   return $output;
-}
-
-
-/**
- * Call the block theming function in a way that allows user theming functions
- * to over ride the default theming function.
- * 
- * @param $block
- *   An array containing the block information.
- * @param $nodelist
- *   An array containing a list of nodes for theming.
- *   
- * @result
- *   A string containing HTML which the theme engine output to the Block
- */
-function thisdayinhistory_theme_block() {
-  $args = func_get_args();
-  $block    = $args[0];
-  $nodelist = $args[1];
-  $namebase = 'thisdayinhistory_block';
-
-  $block['header_raw'] = $block['header'];
-  $block['header'] = check_markup($block['header_raw'], $block['header_format'], FALSE);
-  unset($block['header_format']);
-
-  if (!($func = theme_get_function($namebase . "_" . $block['bid']))) {
-    $func = theme_get_function($namebase);
-  }
-
-  if ($func) {
-    return call_user_func_array($func, array($block, $nodelist));
-  }
-}
-
-
-
-/**
- * Default theme function for This Day in History block html
- * 
- * @param $block
- *   An array containing the block information.
- * @param $nodelist
- *   An array containing a list of nodes for theming.
- *   
- * @result
- *   A string containing HTML which the theme engine output to the Block
- */
-function theme_thisdayinhistory_block($block, $nodes) {
-  drupal_add_css(drupal_get_path('module', 'thisdayinhistory') .'/thisdayinhistory.css');
-
-  foreach($nodes as $node) {
-    $nodes_by_year[$node->year][] = $node;
-  }
-
-  foreach($nodes_by_year as $year => $nodelist) {
-    $first = true;
-    foreach($nodelist as $node) {
-      $row = array(
-        array('data' => '<p>' . $node->year . ':</p>', 'valign' => 'top', 'class' => 'year-column'),
-        $node->teaser
-      );
-      $tablerows[] = $row;
-    }
-  }
-
-  $attributes = array('class' => 'tdih-events');
-  return $block['header'] . theme('table', array(), $tablerows, $attributes);
 }
 
 
@@ -784,113 +603,81 @@ function theme_thisdayinhistory_block($block, $nodes) {
  */
 
 /**
- * Returns a list of node types which have full support for importing provided
- * by other hooks.
- *
- * @return
- *   An associative array of node types containting the value for the type
- *   child of the node object => human-readable name.
- */
-function thisdayinhistory_node_import_types() {
-  return array('thisdayinhistory' => t('This Day In History'));
-}
-
-/**
- * Provides a list of fields which each module understands. When importing the
- * array keys will be used to name the node object's children.
- *
- * @param $type
- *   A string containing the node type currently being processed.
- * @return
- *   An associative array of node object children names => human readable
- *   descriptions.
+ * Implementation of Node Import's hook_node_import_fields().
  */
 function thisdayinhistory_node_import_fields($type) {
-  if ($type == 'thisdayinhistory') {
+  if ($type == 'node:thisdayinhistory') {
     return array(
-      'body' => t('This Day in History: Event'),
-      'title' => t('Title'),
-      'iso_date'      => t('This Day in History: Date yyyy-mm-dd'),
-      'european_date' => t('This Day in History: Date dd/mm/yyyy'),
-      'american_date' => t('This Day in History: Date mm/dd/yyyy'),
-      'text_date'     => t('This Day in History: Date mmm d, yyyy'),
-      'promote' => t('This Day in History: Promote to Block')
+      'iso_date' => array(
+        'title'         => t('TDiH Event Date, formatted: yyyy-mm-dd'),
+        'is_mappable'   => TRUE,
+        'map_required'  => FALSE,
+      ),
+      'european_date' => array(
+        'title'         => t('TDiH Event Date, formatted: dd/mm/yyyy'),
+        'is_mappable'   => TRUE,
+        'map_required'  => FALSE,
+      ),
+      'american_date' => array(
+        'title'         => t('TDiH Event Date, formatted: mm/dd/yyyy'),
+        'is_mappable'   => TRUE,
+        'map_required'  => FALSE,
+      ),
+      'text_date' => array(
+        'title'         => t('TDiH Event Date, formatted: mmm d, yyyy'),
+        'is_mappable'   => TRUE,
+        'map_required'  => FALSE,
+      ),
+      'blockdisplay' => array(
+        'title'         => t('TDiH: Display in Block'),
+        'is_mappable'   => TRUE,
+        'map_required'  => FALSE,
+      ),
     );
   }
 }
 
 
 /**
- * Hook that is called before node_validate. This allows a module to
- * change the imported field from a user readable format to a format
- * node_save understands.
- *
- * See import_taxonomy.inc for a complex example.
- *
- * @param &$node
- *   A node object which can be changed if needed.
- * @param $preview
- *   Boolean. If TRUE this function is only run in a preview stage. The
- *   function should then avoid making permanent changes to any database
- *   table. If FALSE the function may commit permanent changes to the
- *   database that are needed to import the node.
- * @return
- *   Nothing.
+ * Implementation of Node Import's hook_node_import_values_alter().
  */
-function thisdayinhistory_node_import_prepare(&$node, $preview = FALSE) {
-  if ($node->iso_date) {
-    $dateparts = explode('-', check_plain($node->iso_date));
-    $node->year = $dateparts[0];
-    $node->month = $dateparts[1];
-    $node->day = $dateparts[2];
+function thisdayinhistory_node_import_values_alter(&$values, $type, $options, $preview) {
+  if ($values['iso_date']) {
+    $dateparts = explode('-', check_plain($values['iso_date']));
+    $values['year']   = $dateparts[0];
+    $values['month']  = $dateparts[1];
+    $values['day']    = $dateparts[2];
   }
-  else if ($node->text_date) {
-    $dateparts = explode(' ', check_plain($node->text_date));
+  else if ($values['text_date']) {
     $monthmap = array(t('jan') => 1, t('feb') => 2, t('mar') => 3, t('apr') => 4, t('may') => 5, t('jun') => 6,
                       t('jul') => 7, t('aug') => 8, t('sep') => 9, t('oct') => 10, t('nov') => 11, t('dec') => 12 );
-    $node->year = $dateparts[2];
-    $node->month = $monthmap[strtolower($dateparts[0])];
-    $node->day = str_replace(',', '', $dateparts[1]);
+    $dateparts = explode(' ', check_plain($values['text_date']));
+    $values['year']   = $dateparts[2];
+    $values['month']  = $monthmap[strtolower($dateparts[0])];
+    $values['day']    = str_replace(',', '', $dateparts[1]);
   }
-  else if ($node->european_date) {
-    $dateparts = explode('/', check_plain($node->european_date));
-    $node->year = $dateparts[2];
-    $node->month = $dateparts[1];
-    $node->day = $dateparts[0];
+  else if ($values['european_date']) {
+    $dateparts = explode('/', check_plain($values['european_date']));
+    $values['year']   = $dateparts[2];
+    $values['month']  = $dateparts[1];
+    $values['day']    = $dateparts[0];
   }
-  else if ($node->american_date) {
-    $dateparts = explode('/', check_plain($node->american_date));
-    $node->year = $dateparts[2];
-    $node->month = $dateparts[0];
-    $node->day = $dateparts[1];
+  else if ($values['american_date']) {
+    $dateparts = explode('/', check_plain($values['american_date']));
+    $values['year']   = $dateparts[2];
+    $values['month']  = $dateparts[0];
+    $values['day']    = $dateparts[1];
   }
-  $node->isodate = $node->year . '-' . $node->month . '-' . $node->day;
+  $values['isodate'] = $node->year .'-'. $node->month .'-'. $node->day;
 
-  $node->teaser = isset($node->body) ? node_teaser($node->body, isset($node->format) ? $node->format : NULL) : '';
-
-  if (!$node->event_promote) {
-    $node->event_promote = 1;
+  if ($values['blockdisplay'] == NULL) {
+    $values['blockdisplay'] = 1;
   }
-  else {
-    $node->event_promote = ($node->promote) ? 1 : 0;
-  }
-  
-  return;
 }
 
-
-
 /**
- *
- * SimpleTest Hooks
- *
+ * Implementation of Node Import's hook_node_import_fields_alter().
  */
-
-/**
-* Implementation of hook_simpletest().
-*/
-function thisdayinhistory_simpletest() {
-  $dir = drupal_get_path('module', 'thisdayinhistory') . '/tests';
-  $tests = file_scan_directory($dir, '\.test$');
-  return array_keys($tests);
+function thisdayinhistory_node_import_fields_alter(&$fields, $type) {
+  $fields['body']['title'] = 'Event Description';
 }

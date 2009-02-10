@@ -58,35 +58,7 @@ Notes on the Theming
 
 Custom Block Theming
 ------------------------------------------------------------------------------
-Standard Drupal theming conventions are followed to allow custom block
-theming in the template.php file. The following variables are provided in the
-function call:
-
-  P1: an array containing the block information
-  P2: an array of Historical event nodes
-
-To custom them all This Day in History blocks, create a template.php function
-named {theme_name}_thisdayinhistory_block. For example, for the garland theme
-the function name is: garland_thisdayinhistory_block
-
-Blocks are individually themable by appending the block number to the function
-name. The block number is displayed on the menu:
-
-  Administer > Site configuration > This Day in History > Configure blocks
-
-For example, if you wanted to theme This Day in History block 5 in the Garland
-theme, you'd create a function named: garland_thisdayinhistory_block_5
-
-To easily see the available values use the following code. You'll need to
-change the function name to match your theme name:
-
-  function {theme_name}_thisdayinhistory_block($block, $nodes) {
-    $output = '<p>$block:</p><pre>'
-      . htmlentities(print_r($block, TRUE)) . '</pre>';
-    $output .= '<p>$nodes:</p><pre>'
-      . htmlentities(print_r($nodes, TRUE)) . '</pre>';
-    return $output;
-  }
+Changed in Drupal 6. Updated instructions coming.
 
 
 Importing Content

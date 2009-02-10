@@ -1,55 +1,186 @@
 <?php
 // $Id$
+/**
+ * @file
+ * Drupal schema and install/uninstall code
+ */
 
-function thisdayinhistory_install() {
-	switch ($GLOBALS['db_type']) {
-		case 'mysql':
-		case 'mysqli':
-			db_query("
-			  CREATE TABLE {thisdayinhistory} (
-			    vid INT(10) unsigned NOT NULL default '0',
-			    nid INT(10) unsigned NOT NULL default '0',
-			    month INT(2) unsigned NOT NULL default '0',
-			    day INT(2) unsigned NOT NULL default '0',
-			    year INT(4) unsigned NOT NULL default '0',
-          isodate DATE,
-          promote INTEGER NOT NULL default false,
-			    PRIMARY KEY (vid, nid),
-			    KEY `node_thisdayinhistory_nid` (nid)
-			  )");
-				
-			db_query('
-				CREATE TABLE {thisdayinhistory_blocks} (
-					bid INTEGER NOT NULL PRIMARY KEY,
-					name VARCHAR(255) NOT NULL UNIQUE,
-					header VARCHAR(255),
-          header_format INTEGER UNSIGNED NOT NULL,
-					block_type INTEGER NOT NULL,
-					uid_filter TEXT NOT NULL,
-					tid_filter TEXT NOT NULL,
-          nid_filter TEXT NOT NULL,
-          rid_filter TEXT NOT NULL,
-					vid INTEGER NOT NULL
-				)');
-			break;
-		case 'pgsql':
-			// TODO
-			break;
-	}
+/**
+ * Implementation of hook_schema().
+ */
+function thisdayinhistory_schema() {
+  $schema['thisdayinhistory'] = array(
+    'description' => t('TODO'),
+    'fields' => array(
+      'nid' => array(
+        'description' => t('Node ID'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'vid' => array(
+        'description' => t('Node version ID'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'month' => array(
+        'description' => t('Event month'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'day' => array(
+        'description' => t('Event day'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => 1,
+        'not null' => TRUE,
+      ),
+      'year' => array(
+        'description' => t('Event Year'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+      ),
+      'isodate' => array(
+        'description' => t('Event date'),
+        'type' => 'datetime',
+        'not null' => FALSE,
+      ),
+      'blockdisplay' => array(
+        'description' => t('Determines if event should be displayed in block'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'thisdayinhistory_nid' => array('nid'),
+    ),
+    'primary key' => array('vid', 'nid'),
+  );
+
+  $schema['thisdayinhistory_blocks'] = array(
+    'description' => t('This Day in History Blocks table'),
+    'primary key' => array('bid'),
+    'unique keys' => array(
+      'name' => array('name')
+    ),
+    'fields' => array(
+      'bid' => array(
+        'description' => t('Unique Block ID'),
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'name' => array(
+        'description' => t('Block name'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'header' => array(
+        'description' => t('TODO'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+      ),
+      'header_format' => array(
+        'description' => t('TODO'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => 1,
+        'not null' => TRUE,
+      ),
+      'block_type' => array(
+        'description' => t('TODO'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+      ),
+      'uid_filter' => array(
+        'description' => t('TODO'),
+        'type' => 'text',
+        'not null' => TRUE,
+      ),
+      'tid_filter' => array(
+        'description' => t('TODO'),
+        'type' => 'text',
+        'not null' => TRUE,
+      ),
+      'nid_filter' => array(
+        'description' => t('TODO'),
+        'type' => 'text',
+        'not null' => TRUE,
+      ),
+      'rid_filter' => array(
+        'description' => t('TODO'),
+        'type' => 'text',
+        'not null' => TRUE,
+      ),
+      'vid' => array(
+        'description' => t('TODO'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+  );
+
+  return $schema;
 }
+
+/**
+ * Implementation of hook_install().
+ */
+function thisdayinhistory_install() {
+  // Create tables.
+  drupal_install_schema('thisdayinhistory');
+}
+
+/**
+ * Implementation of hook_update_N().
+ *
+ * Update 600: Convert the module tables to the Drupal 6 Schema API based schema.
+ */
+function thisdayinhistory_update_600() {
+  $status = array();
+
+  // Convert table: thisdayinhistory
+  db_drop_index($status, 'thisdayinhistory', 'node_thisdayinhistory_nid');
+  db_drop_primary_key($status, 'thisdayinhistory');
+  db_change_field($status, 'thisdayinhistory', 'nid', 'nid', array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE));
+  db_change_field($status, 'thisdayinhistory', 'vid', 'vid', array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0));
+  db_change_field($status, 'thisdayinhistory', 'month', 'month', array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE));
+  db_change_field($status, 'thisdayinhistory', 'day', 'day', array('type' => 'int', 'size' => 'tiny', 'unsigned' => 1, 'not null' => TRUE));
+  db_change_field($status, 'thisdayinhistory', 'year', 'year', array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE));
+  db_change_field($status, 'thisdayinhistory', 'isodate', 'isodate', array('type' => 'datetime', 'not null' => FALSE));
+  db_change_field($status, 'thisdayinhistory', 'promote', 'blockdisplay', array('type' => 'int', 'size' => 'tiny', 'not null' => TRUE, 'default' => 0));
+  db_add_primary_key($status, 'thisdayinhistory', array('vid', 'nid'));
+  db_add_index($status, 'thisdayinhistory', 'thisdayinhistory_nid', array('nid'));
+
+  // Convert table: thisdayinhistory_blocks
+  db_drop_primary_key($status, 'thisdayinhistory_blocks');
+  db_change_field($status, 'thisdayinhistory_blocks', 'bid', 'bid', array('type' => 'serial', 'not null' => TRUE), array('primary key' => array('bid')));
+  db_change_field($status, 'thisdayinhistory_blocks', 'name', 'name', array('type' => 'varchar', 'length' => 255, 'not null' => TRUE));
+  db_change_field($status, 'thisdayinhistory_blocks', 'header', 'header', array('type' => 'varchar', 'length' => 255, 'not null' => FALSE));
+  db_change_field($status, 'thisdayinhistory_blocks', 'header_format', 'header_format', array('type' => 'int', 'size' => 'tiny', 'unsigned' => 1, 'not null' => TRUE));
+  db_change_field($status, 'thisdayinhistory_blocks', 'block_type', 'block_type', array('type' => 'int', 'size' => 'tiny', 'not null' => TRUE));
+  db_change_field($status, 'thisdayinhistory_blocks', 'uid_filter', 'uid_filter', array('type' => 'text', 'not null' => TRUE));
+  db_change_field($status, 'thisdayinhistory_blocks', 'tid_filter', 'tid_filter', array('type' => 'text', 'not null' => TRUE));
+  db_change_field($status, 'thisdayinhistory_blocks', 'nid_filter', 'nid_filter', array('type' => 'text', 'not null' => TRUE));
+  db_change_field($status, 'thisdayinhistory_blocks', 'rid_filter', 'rid_filter', array('type' => 'text', 'not null' => TRUE));
+  db_change_field($status, 'thisdayinhistory_blocks', 'vid', 'vid', array('type' => 'int', 'not null' => TRUE));
+
+  return $status;
+}
+
 
 /**
  * Implementation of hook_uninstall().
  */
 function thisdayinhistory_uninstall() {
-	switch ($GLOBALS['db_type']) {
-		case 'mysql':
-		case 'mysqli':
-		  db_query('DROP TABLE {thisdayinhistory}');
-		  db_query('DROP TABLE {thisdayinhistory_blocks}');
-			break;
-		case 'pgsql':
-			// TODO
-			break;
-	}
+  // Remove tables.
+  drupal_uninstall_schema('thisdayinhistory');
 }
