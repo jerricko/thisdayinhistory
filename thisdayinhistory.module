@@ -1,4 +1,5 @@
 <?php
+// $Id: thisdayinhistory.module,v 1.2.2.4 2009/09/05 21:58:36 dmcgladdery Exp $
 
 /**
  * @file
@@ -26,8 +27,9 @@ function thisdayinhistory_node_info() {
   return array(
     'thisdayinhistory' => array(
       'name' => t('Historical event'),
-      'module' => 'thisdayinhistory',
+      'base' => 'thisdayinhistory',
       'description' => t("An interesting or historical event from the past."),
+      'has_title' => TRUE,
     )
   );
 }
@@ -36,12 +38,24 @@ function thisdayinhistory_node_info() {
 /**
  * Implementation of hook_perm().
  */
-function thisdayinhistory_perm() {
+function thisdayinhistory_permission() {
   return array(
-    'administer this day in history',
-    'create historical events',
-    'edit own historical events',
-    'promote historical events to block'
+    'administer this day in history' => array(
+      'title' => t('Administer This Day in History'),
+      'description' => t('Perform administration tasks for TDIH module.'),
+    ),
+    'create historical events' => array(
+      'title' => t('Create historical events'),
+      'description' => t('Allows creation of TDIH content/nodes.'),
+    ),
+    'edit own historical events' => array(
+      'title' => t('Edit own historical events'),
+      'description' => t('Allows editing of owned TDHI nodes.'),
+    ),
+    'promote historical events to block' => array(
+      'title' => t('Promote historical events to block'),
+      'description' => t('Allows promoting own node to the frontpage block.'),
+    )
   );
 }
 
@@ -49,17 +63,19 @@ function thisdayinhistory_perm() {
 /**
  * Implementation of hook_access().
  */
-function thisdayinhistory_access($op, $node, $account) {
+function thisdayinhistory_node_access($node, $op, $account) {
   // Admins can do anything
-  if (user_access('administer this day in history', $account)) return TRUE;
+  if (user_access('administer this day in history', $account)) {
+    return NODE_ACCESS_ALLOW;
+  }
 
-  if ($op == 'create') {
-    return user_access('create historical events', $account);
+  if ($op == 'create' && user_access('create historical events', $account)) {
+    return NODE_ACCESS_ALLOW;
   }
 
   if ($op == 'update' || $op == 'delete') {
     if (user_access('edit own historical events', $account) && ($account->uid == $node->uid)) {
-      return TRUE;
+      return NODE_ACCESS_ALLOW;
     }
   }
 }
@@ -71,7 +87,7 @@ function thisdayinhistory_access($op, $node, $account) {
 function thisdayinhistory_menu() {
   $items = array();
 
-  $items['admin/settings/thisdayinhistory'] = array(
+  $items['admin/config/content/thisdayinhistory'] = array(
     'title' => 'This Day in History',
     'description' => 'Create and configure This Day in History blocks and configure options.',
     'access callback' => 'user_access',
@@ -81,7 +97,7 @@ function thisdayinhistory_menu() {
     'file' => 'thisdayinhistory.admin.inc',
     'type' => MENU_NORMAL_ITEM,
   );
-  $items['admin/settings/thisdayinhistory/overview'] = array(
+  $items['admin/config/content/thisdayinhistory/overview'] = array(
     'title' => 'Overview',
     'description' => 'Create and configure This Day in History blocks and configure options.',
     'access callback' => 'user_access',
@@ -90,7 +106,7 @@ function thisdayinhistory_menu() {
     'type' => MENU_DEFAULT_LOCAL_TASK,
     'weight' => -2
   );
-  $items['admin/settings/thisdayinhistory/blocks'] = array(
+  $items['admin/config/content/thisdayinhistory/blocks'] = array(
     'title' => 'Configure blocks',
     'description' => 'Configure blocks.',
     'page callback' => 'drupal_get_form',
@@ -101,7 +117,7 @@ function thisdayinhistory_menu() {
     'type' => MENU_LOCAL_TASK,
     'weight' => -1
   );
-  $items['admin/settings/thisdayinhistory/blocks/delete'] = array(
+  $items['admin/config/content/thisdayinhistory/blocks/delete'] = array(
     'title' => 'Delete TDIH block',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('thisdayinhistory_block_delete_confirmation'),
@@ -118,8 +134,8 @@ function thisdayinhistory_menu() {
 /**
  * Implementation of hook_form().
  */
-function thisdayinhistory_form(&$node) {
-  $type = node_get_types('type', $node);
+function thisdayinhistory_form($node, $form_state) {
+  $type = node_type_get_type($node);
   drupal_add_css(drupal_get_path('module', 'thisdayinhistory') .'/thisdayinhistory.css');
 
   $form['title'] = array(
@@ -127,40 +143,30 @@ function thisdayinhistory_form(&$node) {
     '#title' => check_plain($type->title_label),
     '#required' => TRUE,
     '#default_value' => $node->title,
-    '#weight' => -5
+    '#weight' => -9
   );
-
-  // Put the body and its associated filter selection form into the same sub-array
-  // so they don't get split up if someone plays around with weights
-  $form['body_filter']['body'] = array(
-    '#type' => 'textarea',
-    '#title' => t('Event'),
-    '#default_value' => $node->body,
-    '#required' => FALSE
-  );
-  $form['body_filter']['filter'] = filter_form($node->format);
 
   // Now we define the form elements specific to our node type.
   $form['tdih_date'] = array(
-    '#attributes'   => array('class' => 'tdih-date'),
-    '#weight'       => -1
+    '#attributes'   => array('class' => array('tdih-date')),
+    '#weight'       => -5
   );
   $form['tdih_date']['year'] = array(
     '#type' => 'textfield',
     '#title' => t('Year'),
     '#required' => TRUE,
-    '#default_value' => $node->year,
+    '#default_value' => !empty($node->year) ? $node->year : '',
     '#size' => 4,
     '#maxlength' => 4,
     '#field_suffix' => ' - ',
-    '#attributes'   => array('class' => 'tdih-datefield'),
+    '#attributes'   => array('class' => array('tdih-datefield')),
     '#prefix' => '<div class="tdih-date form-item"><label>Date:</label>',
   );
   $form['tdih_date']['month'] = array(
     '#type' => 'textfield',
     '#title' => t('Month'),
     '#required' => TRUE,
-    '#default_value' => $node->month,
+    '#default_value' => !empty($node->month) ? $node->month : '',
     '#size' => 4,
     '#maxlength' => 2,
     '#field_suffix' => ' - ',
@@ -169,13 +175,13 @@ function thisdayinhistory_form(&$node) {
     '#type' => 'textfield',
     '#title' => t('Day'),
     '#required' => TRUE,
-    '#default_value' => $node->day,
+    '#default_value' => !empty($node->day) ? $node->day : '',
     '#size' => 4,
     '#maxlength' => 2,
     '#suffix' => '</div><div style="clear:both;"></div>'
   );
 
-  if (user_access('promote quotes to block')) {
+  if (user_access('promote historical events to block')) {
     $form['blockdisplay'] = array(
       '#type' => 'checkbox',
       '#title' => t('Display in TDiH blocks'),
@@ -233,9 +239,9 @@ function thisdayinhistory_validate($node, &$form) {
 function thisdayinhistory_insert($node) {
   $isodate = $node->year .'-'. $node->month .'-'. $node->day;
   db_query("INSERT INTO {thisdayinhistory}
-          (vid, nid, month, day, year, isodate, blockdisplay)
-          VALUES (%d, %d, '%d', %d, %d, '%s', %d)",
-          $node->vid, $node->nid, $node->month, $node->day, $node->year, $isodate, $node->blockdisplay);
+          (vid, nid, isodate, blockdisplay)
+          VALUES (:vid, :nid, :isodate, :blockdisplay)", array(
+          ':vid' => $node->vid, ':nid' => $node->nid, ':isodate' => $isodate, ':blockdisplay' => $node->blockdisplay));
 }
 
 
@@ -246,12 +252,11 @@ function thisdayinhistory_update($node) {
   // if this is a new node or we're adding a new revision,
   if ($node->revision) {
     thisdayinhistory_insert($node);
-  }
-  else {
+  } else {
     $isodate = $node->year .'-'. $node->month .'-'. $node->day;
     db_query("UPDATE {thisdayinhistory}
-            SET month = %d, day = %d, year = %d, isodate = '%s', blockdisplay = %d WHERE vid = %d",
-            $node->month, $node->day, $node->year, $isodate, $node->blockdisplay, $node->vid);
+            SET isodate = :isodate, blockdisplay = :blockdisplay WHERE nid = :nid",
+            array(':isodate' => $isodate, ':blockdisplay' => $node->blockdisplay, ':nid' => $node->nid));
   }
 }
 
@@ -262,31 +267,35 @@ function thisdayinhistory_update($node) {
 function thisdayinhistory_delete($node) {
   // When a node is deleted, we need to remove all related records from out table.
   // Notice that we're matching all revision, by using the node's nid.
-  db_query('DELETE FROM {thisdayinhistory} WHERE nid = %d', $node->nid);
+  db_query('DELETE FROM {thisdayinhistory} WHERE nid = :nid', array(':nid' => $node->nid));
 }
 
 
 /**
  * Implementation of hook_load().
  */
-function thisdayinhistory_load($node) {
-  $additions = db_fetch_object(
-    db_query('SELECT tdih.month, tdih.day, tdih.year, DATE(tdih.isodate) as isodate, tdih.blockdisplay
-             FROM {thisdayinhistory} tdih
-             WHERE vid = %d', $node->vid)
-  );
-  return $additions;
+function thisdayinhistory_load($nodes) {
+  $result = db_query('SELECT nid, DATE(tdih.isodate) as isodate, tdih.blockdisplay FROM {thisdayinhistory} tdih WHERE nid IN (:nids)', array(':nids' => array_keys($nodes)));
+  foreach($result as $record) {
+    $nodes[$record->nid]->isodate = $record->isodate;
+    if ($record->isodate) {
+      list($year, $month, $day) = explode('-', $record->isodate);
+      $nodes[$record->nid]->year   = $year;
+      $nodes[$record->nid]->month  = $month;
+      $nodes[$record->nid]->day    = $day;
+    }
+  }
 }
 
 
 /**
  * Implementation of hook_view().
  */
-function thisdayinhistory_view($node, $teaser = FALSE, $page = FALSE) {
-  $node = node_prepare($node, $teaser);
+function thisdayinhistory_view($node, $view_mode) {
+  node_object_prepare($node);
   if (!$node->isodate) $node->isodate = $node->year .'-'. $node->month .'-'. $node->day;
   $node->content['thisdayinhistory'] = array(
-    '#value' => theme('thisdayinhistory_node_field', $node),
+    '#markup' => theme('thisdayinhistory_node_field', array('node' => $node)),
     '#weight' => -1,
   );
 
@@ -295,146 +304,147 @@ function thisdayinhistory_view($node, $teaser = FALSE, $page = FALSE) {
 
 
 /**
- * Implementation of hook_block().
+ * Implementation of hook_block_info().
  */
-function thisdayinhistory_block($op = 'list', $delta = 0, $edit = array()) {
-  switch ($op) {
-    //
-    // List
-    //
-    case 'list':
-      $blocks = array();
-      $block_list = db_query('SELECT tdihb.bid, tdihb.name FROM {thisdayinhistory_blocks} tdihb');
-      while ($block = db_fetch_object($block_list)) {
-        $blocks[$block->bid] = array('info' => t('TDiH') .': '. $block->name);
-      }
-      return $blocks;
+function thisdayinhistory_block_info() {
+  $blocks = array();
+  $block_list = db_query('SELECT tdihb.bid, tdihb.name FROM {thisdayinhistory_blocks} tdihb');
+  foreach ($block_list as $block) {
+    $blocks[$block->bid] = array('info' => t('TDiH') .': '. $block->name);
+  }
+  return $blocks;
+}
 
-    //
-    // View
-    //
-    case 'view':
-      return thisdayinhistory_get_block($delta);
+/**
+ * Implementation of hook_block_configure().
+ */
+function thisdayinhistory_block_configure($delta = '') {
+  $result = db_query("SELECT tdihb.* FROM {thisdayinhistory_blocks} tdihb WHERE bid = :delta", array(':delta' => $delta));
+  $block = $result->fetch();
 
-    //
-    // Configure
-    //
-    case 'configure':
-      $block = db_fetch_object(
-        db_query("SELECT tdihb.* FROM {thisdayinhistory_blocks} tdihb WHERE bid = %d", $delta)
-      );
-      $block->uid_filter = explode(',', $block->uid_filter);
-      $block->tid_filter = explode(',', $block->tid_filter);
-      $block->rid_filter = explode(',', $block->rid_filter);
+  $block->uid_filter = explode(',', $block->uid_filter);
+  $block->tid_filter = explode(',', $block->tid_filter);
+  $block->rid_filter = explode(',', $block->rid_filter);
 
-      // get roles
-      $roles = user_roles(FALSE, 'create historical events');
-      foreach (user_roles(FALSE, 'edit own historical events') as $rid => $role) {
-        $roles[$rid] = $role;
-      }
-      foreach (user_roles(FALSE, 'administer this day in history') as $rid => $role) {
-        $roles[$rid] = $role;
-      }
+  // get roles
+  $roles = user_roles(FALSE, 'create historical events');
+  foreach (user_roles(FALSE, 'edit own historical events') as $rid => $role) {
+    $roles[$rid] = $role;
+  }
+  foreach (user_roles(FALSE, 'administer this day in history') as $rid => $role) {
+    $roles[$rid] = $role;
+  }
 
-      // Get users
-      $users = array();
-      if ($roles[DRUPAL_ANONYMOUS_RID]) {
-        $users[0] = variable_get('anonymous', t('Anonymous'));
-      }
-      $result = db_query(
-        "SELECT DISTINCT u.uid, u.name
+  // Get users
+  $users = array();
+  if (isset($roles[DRUPAL_ANONYMOUS_RID])) {
+    $users[0] = variable_get('anonymous', t('Anonymous'));
+  }
+  $result = db_query(
+    "SELECT DISTINCT u.uid, u.name
         FROM {users} u
         LEFT JOIN {users_roles} ur ON ur.uid = u.uid
-        WHERE u.uid = 1 OR ur.rid
-        IN (%s)",
-        implode(',', (count($roles) ? array_keys($roles) : array(0)))
-      );
-      while ($row = db_fetch_object($result)) {
-        $users[$row->uid] = ($row->uid ? $row->name : variable_get('anonymous', t('Anonymous')));
-      }
-
-      $form = array();
-
-      if ($delta) {
-        $form['bid'] = array(
-          '#type' => 'value',
-          '#value' => $delta
-        );
-      }
-
-      $form['name'] = array(
-        '#type' => 'textfield',
-        '#title' => t('Name'),
-        '#required' => TRUE,
-        '#default_value' => $block->name,
-        '#description' => t('Enter a unique name for this block. This will identify the block on the !block administration page and be used for the default block title.', array('!block administration page' => l(t('block administration page'), 'admin/build/block'), '%title' => '%title'))
-      );
-      $form['header']['header_field'] = array(
-        '#type' => 'textarea',
-        '#title' => t('Header'),
-        '#default_value' => $block->header,
-      );
-      $form['header']['header_filter'] = filter_form($block->header_format, NULL, array('header_filter'));
-      $form['block_type'] = array(
-        '#type' => 'radios',
-        '#title' => t('Type'),
-        '#required' => TRUE,
-        '#default_value' => (($block->block_type == 1) ? 1 : 0),
-        '#options' => array(t('All'), t('Random'))
-      );
-
-      if (count($roles)) {
-        $form['rid_filter'] = array(
-          '#type' => 'select',
-          '#title' => t('Role filter'),
-          '#multiple' => TRUE,
-          '#default_value' => $block->rid_filter,
-          '#options' => $roles,
-          '#description' => t('To restrict this block to display only quotes submitted by users in specific roles, select the roles here.')
-        );
-      }
-      else {
-        $form['rid_filter'] = array(
-          '#type' => 'item',
-          '#title' => t('Role filter'),
-          '#description' => t('There are no roles configured with the %create historical events, %administer this day in history permissions, or %edit own historical events, so no roles are available. To filter by role, please assign this permission to at least one role on the !access control page.', array('%create historical events' => t('create historical events'), '%administer this day in history' => t('administer this day in history'), '%edit own historical events' => t('edit own historical events'), '!access control page' => l(t('access control page'), 'admin/user/access')))
-        );
-      }
-
-      $form['uid_filter'] = array(
-        '#type' => 'select',
-        '#title' => t('User filter'),
-        '#multiple' => TRUE,
-        '#default_value' => $block->uid_filter,
-        '#options' => $users,
-        '#description' => t('To restrict this block to display only This Day in History events submitted by specific users, select the users here.')
-      );
-
-      if (function_exists('taxonomy_form_all')) {
-        $form['tid_filter'] = array(
-          '#type' => 'select',
-          '#title' => t('Category filter'),
-          '#multiple' => TRUE,
-          '#default_value' => $block->tid_filter,
-          '#options' => taxonomy_form_all(TRUE),
-          '#description' => t('To restrict this block to display only This Day in History events in specific categories, select the categories here.')
-        );
-      }
-
-      return $form;
-
-    case 'save':
-      $uids = implode(',', (array) $edit['uid_filter']);
-      $tids = implode(',', (array) $edit['tid_filter']);
-      $rids = implode(',', (array) $edit['rid_filter']);
-
-      db_query(
-        "UPDATE {thisdayinhistory_blocks}
-        SET name = '%s', block_type = %d, uid_filter = '%s', tid_filter = '%s', rid_filter = '%s', header='%s', header_format = %d
-        WHERE bid = %d",
-        $edit['name'], (($edit['block_type'] == 1) ? 1 : 0), $uids, $tids, $rids, $edit['header_field'], $edit['header_filter'], $delta
-      );
+        WHERE u.uid = 1 OR ur.rid IN (:roles)",
+    array(':roles' => implode(',', (count($roles) ? array_keys($roles) : array(0))))
+  );
+  foreach ($result as $row) {
+    $users[$row->uid] = ($row->uid ? $row->name : variable_get('anonymous', t('Anonymous')));
   }
+
+  $form = array();
+
+  if ($delta) {
+    $form['bid'] = array(
+      '#type' => 'value',
+      '#value' => $delta
+    );
+  }
+
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Name'),
+    '#required' => TRUE,
+    '#default_value' => $block->name,
+    '#description' => t('Enter a unique name for this block. This will identify the block on the !block administration page and be used for the default block title.', array('!block administration page' => l(t('block administration page'), 'admin/build/block'), '%title' => '%title'))
+  );
+  $form['header']['header_field'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Header'),
+    '#default_value' => $block->header,
+  );
+  $form['block_type'] = array(
+    '#type' => 'radios',
+    '#title' => t('Type'),
+    '#required' => TRUE,
+    '#default_value' => (($block->block_type == 1) ? 1 : 0),
+    '#options' => array(t('All'), t('Random'))
+  );
+
+  if (count($roles)) {
+    $form['rid_filter'] = array(
+      '#type' => 'select',
+      '#title' => t('Role filter'),
+      '#multiple' => TRUE,
+      '#default_value' => $block->rid_filter,
+      '#options' => $roles,
+      '#description' => t('To restrict this block to display only quotes submitted by users in specific roles, select the roles here.')
+    );
+  }
+  else {
+    $form['rid_filter'] = array(
+      '#type' => 'item',
+      '#title' => t('Role filter'),
+      '#description' => t('There are no roles configured with the %create historical events, %administer this day in history permissions, or %edit own historical events, so no roles are available. To filter by role, please assign this permission to at least one role on the !access control page.', array('%create historical events' => t('create historical events'), '%administer this day in history' => t('administer this day in history'), '%edit own historical events' => t('edit own historical events'), '!access control page' => l(t('access control page'), 'admin/user/access')))
+    );
+  }
+
+  $form['uid_filter'] = array(
+    '#type' => 'select',
+    '#title' => t('User filter'),
+    '#multiple' => TRUE,
+    '#default_value' => $block->uid_filter,
+    '#options' => $users,
+    '#description' => t('To restrict this block to display only This Day in History events submitted by specific users, select the users here.')
+  );
+
+  if (function_exists('taxonomy_form_all')) {
+    $form['tid_filter'] = array(
+      '#type' => 'select',
+      '#title' => t('Category filter'),
+      '#multiple' => TRUE,
+      '#default_value' => $block->tid_filter,
+      '#options' => taxonomy_form_all(TRUE),
+      '#description' => t('To restrict this block to display only This Day in History events in specific categories, select the categories here.')
+    );
+  }
+
+  return $form;
+}
+
+/**
+ * Implementation of hook_block_view().
+ */
+function thisdayinhistory_block_view($delta = '') {
+  drupal_add_css(drupal_get_path('module', 'thisdayinhistory') .'/thisdayinhistory.css',
+    array('group' => CSS_DEFAULT, 'every_page' => TRUE));
+  return thisdayinhistory_get_block($delta);
+}
+
+/**
+ * Implementation of hook_block_save().
+ */
+function thisdayinhistory_block_save($delta = '', $edit = array()) {
+  $uids = implode(',', (array) $edit['uid_filter']);
+  $rids = implode(',', (array) $edit['rid_filter']);
+  //Hard coding header filter as filter_html because some sites have machine name while upgraded D6->D7 sites still have integers
+
+  db_query(
+    "UPDATE {thisdayinhistory_blocks}
+        SET name = :name, block_type = :block, uid_filter = :uids, rid_filter = :rids, header = :hfield, header_format = :hfilter
+        WHERE bid = :delta",
+    array(':name' => $edit['name'], ':block' => (($edit['block_type'] == 1) ? 1 : 0), ':uids' => $uids,
+      ':rids' => $rids, ':hfield' => $edit['header_field'], ':hfilter' => 2, ':delta' => $delta)
+  );
 }
 
 /**
@@ -449,39 +459,45 @@ function thisdayinhistory_block($op = 'list', $delta = 0, $edit = array()) {
  */
 function thisdayinhistory_get_events($options = array()) {
   // Default values
-  $month                 = date('n');
-  $day                   = date('j');
-  $promote               = '1';
-  $type                  = 0;
+  $month      = format_date(time(), 'custom', 'n');
+  $day        = format_date(time(), 'custom', 'j');
+  $promote    = '1';
+  $type       = 'all';
+
+  $query = db_select('thisdayinhistory', 'tdih');
+  $query->leftJoin('node', 'n', 'n.vid = tdih.vid');
+  $query->fields('n', array('nid'));
+  $query->addTag('node_access');
 
   // Evaluate $options
-  $added_joins           = '';
-  $additional_conditions = '';
   foreach ($options as $name => $value) {
     switch ($name) {
       case 'uid_filter':
         if ($value) {
-          $additional_conditions .= " AND n.uid IN ($value)";
+          $query->condition('n.uid', $value, 'IN');
         }
         break;
       case 'tid_filter':
         if ($value) {
-          $added_joins .= "INNER JOIN {term_node} tn ON tn.nid = n.nid ";
-          $additional_conditions .= " AND tn.tid IN ($value)";
+          $query->innerJoin('term_node', 'tn', 'tn.nid = n.nid');
+          $query->condition('tn.tid', $value, 'IN');
         }
         break;
       case 'rid_filter':
         if ($value) {
-          $added_joins .= "LEFT JOIN {users_roles} ur ON ur.uid = n.uid ";
-          $additional_conditions .= " AND ur.rid IN ($value) OR (". DRUPAL_ANONYMOUS_RID ." IN ($value) AND n.uid = 0)";
+          $query->leftJoin('users_roles', 'ur', 'ur.uid = n.uid');
+          $query->condition(db_or()->condition('ur.rid', $value, 'IN')->db_and()->condition(DRUPAL_ANONYMOUS_RID, $value, 'IN')->condition('n.uid', 0));
         }
         break;
       case 'promoted_only':
         $promote = ($value) ? 1 : 0;
+        break;
       case 'month':
         $month = $value;
+        break;
       case 'day':
         $day = $value;
+        break;
       case 'block_type':
         switch ($value) {
           case 0:
@@ -495,22 +511,18 @@ function thisdayinhistory_get_events($options = array()) {
     }
   }
 
-  $query = db_rewrite_sql(
-    "SELECT n.nid FROM {thisdayinhistory} tdih
-    INNER JOIN {node} n ON n.vid = tdih.vid
-    $added_joins
-    WHERE tdih.month = %d AND tdih.day = %d
-      AND n.status = 1
-      AND n.type = 'thisdayinhistory'
-      AND tdih.blockdisplay = $promote
-      $additional_conditions
-    ORDER BY tdih.year"
-  );
+  $query->where("month(tdih.isodate)= :month", array(':month' => $month))
+        ->where("dayofmonth(tdih.isodate) = :day", array(':day' => $day));
+  $query->condition('n.status', 1)
+        ->condition('n.type', 'thisdayinhistory')
+        ->condition('tdih.blockdisplay', $promote);
+  $query->orderBy('tdih.isodate');
 
-  $queryresult = db_query($query, $month, $day);
+  //$queryresult = db_query($query, array(':month' => $month, ':day' => $day));
+  $queryresult = $query->execute();
 
   $nodelist = array();
-  while ($entry = db_fetch_object($queryresult)) {
+  foreach ($queryresult as $entry) {
     $nodelist[] = $entry->nid;
   }
 
@@ -524,19 +536,18 @@ function thisdayinhistory_get_events($options = array()) {
 
   $renderednodes = array();
   foreach ($nodelist as $node_id) {
-    $renderednodes[] = node_prepare(node_load($node_id), TRUE);
+    $renderednodes[] = node_load($node_id);
   }
-
   return $renderednodes;
 }
 
 function thisdayinhistory_get_block($delta) {
-  $block = db_fetch_array(
-    db_query('SELECT tdihb.* FROM {thisdayinhistory_blocks} tdihb WHERE tdihb.bid = %d', $delta)
-  );
+  $result = db_query('SELECT tdihb.* FROM {thisdayinhistory_blocks} tdihb WHERE tdihb.bid = :delta', array(':delta' => $delta));
+  $block = $result->fetchAssoc();
   if (!$block) {
     return NULL;
   }
+  $block['header'] = check_markup($block['header'], $block['header_format'], FALSE);
 
   $eventnodes = thisdayinhistory_get_events($block);
 
@@ -546,7 +557,7 @@ function thisdayinhistory_get_block($delta) {
   else {
     return array(
       'subject' => $block['name'],
-      'content' => theme('thisdayinhistory_block_content', $block, $eventnodes)
+      'content' => theme('thisdayinhistory_block_content', array('block' => $block, 'node_list' => $eventnodes))
     );
   }
 }
@@ -564,18 +575,19 @@ function thisdayinhistory_get_block($delta) {
 function thisdayinhistory_theme() {
   return array(
     'thisdayinhistory_blocks_configure' => array(
-      'arguments' => array('form' => NULL),
+      'variables' => array('form' => NULL),
+      'render element' => 'form',
     ),
     'thisdayinhistory_node_field' => array(
       'file' => 'thisdayinhistory.module',
-      'arguments' => array(
+      'variables' => array(
         'node' => NULL,
       ),
     ),
     'thisdayinhistory_block_content' => array(
       'template'  => 'thisdayinhistory-block-content',
       'path'      => drupal_get_path('module', 'thisdayinhistory') .'/theme',
-      'arguments' => array(
+      'variables' => array(
         'block' => NULL,
         'node_list' => NULL,
       ),
@@ -587,9 +599,10 @@ function thisdayinhistory_theme() {
 /**
  * Default theme function for TDiH date field displayed with node
  */
-function theme_thisdayinhistory_node_field($node) {
+function theme_thisdayinhistory_node_field($variables) {
+  $node = $variables['node'];
   $output = '<div class="thisdayinhistory-date">';
-  $output .= t('Date: %isodate', array('%isodate' => check_plain($node->isodate)));
+  $output .= t('Date: !isodate', array('!isodate' => check_plain($node->isodate)));
   $output .= '</div>';
   return $output;
 }

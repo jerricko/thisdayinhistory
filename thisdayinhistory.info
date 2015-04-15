@@ -1,4 +1,11 @@
+; $Id: thisdayinhistory.info,v 1.2 2009/02/10 19:40:01 dmcgladdery Exp $
 name = This Day In History
 description = "Display historical events that happened on this day."
 
-core = 6.x
+core = 7.x
+; Information added by drupal.org packaging script on 2009-09-05
+version = "7.x-1.0-dev"
+core = "7.x"
+project = "thisdayinhistory"
+datestamp = "1252188956"
+

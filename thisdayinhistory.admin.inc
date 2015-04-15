@@ -1,4 +1,5 @@
 <?php
+// $Id: thisdayinhistory.admin.inc,v 1.1 2009/02/10 19:40:01 dmcgladdery Exp $
 /**
  * @file
  * Module Admin Functions
@@ -11,7 +12,8 @@
  * Admin settings screen
  */
 function thisdayinhistory_admin_overview() {
-  $total = db_result(db_query("SELECT COUNT(*) FROM {node} n where type = 'thisdayinhistory'"));
+  $result = db_query("SELECT COUNT(*) FROM {node} n where type = 'thisdayinhistory'");
+  $total = $result->fetchField();
   return "<label><strong>Content</strong></label>\n<div>Historical events: $total </div>";
 }
 
@@ -19,7 +21,7 @@ function thisdayinhistory_admin_overview() {
 /**
  * Displays a list of currently-defined blocks.
  */
-function thisdayinhistory_blocks_configure() {
+function thisdayinhistory_blocks_configure($form_state) {
   $form = array();
   $form['name'] = array(
     '#type' => 'textfield',
@@ -38,12 +40,13 @@ function thisdayinhistory_blocks_configure() {
 /**
  * Renders the block list, including the "Add block" row.
  */
-function theme_thisdayinhistory_blocks_configure($form) {
+function theme_thisdayinhistory_blocks_configure($variables) {
+  $form = $variables['form'];
   $header = array(t('Name'), t('Block ID'), t('Filters'), array('data' => t('Operations'), 'colspan' => 2));
   $result = db_query('SELECT tdihb.* FROM {thisdayinhistory_blocks} tdihb ORDER BY tdihb.name');
   $rows = array();
 
-  while ($block = db_fetch_object($result)) {
+  foreach ($result as $block) {
     $filters = array();
 
     if ($block->nid_filter) {
@@ -66,23 +69,23 @@ function theme_thisdayinhistory_blocks_configure($form) {
       $block->name,
       $block->bid,
       implode(', ', (count($filters) ? $filters : array(t('none')))),
-      l(t('configure block'), "admin/build/block/configure/thisdayinhistory/$block->bid"),
-      l(t('delete block'), "admin/settings/thisdayinhistory/blocks/delete/$block->bid")
+      l(t('configure block'), "admin/structure/block/manage/thisdayinhistory/{$block->bid}/configure"),
+      l(t('delete block'), "admin/structure/block/manage/thisdayinhistory/{$block->bid}/delete"),
     );
   }
 
   $rows[] = array(
     drupal_render($form['name']),
-    array('data' => drupal_render($form['submit']), 'colspan' => 4)
+    array('data' => drupal_render($form['submit']), 'colspan' => 4),
   );
 
-  $output = drupal_render($form);
+  $output = drupal_render_children($form);
 
   if (count($rows)) {
-    $output .= theme('table', $header, $rows);
+    $output .= theme('table', array('header' => $header, 'rows' => $rows));
   }
   else {
-    $output .= theme('table', $header, array(array(array('data' => t('No blocks are defined.'), 'colspan' => 4))));
+    $output .= theme('table', array('header' => $header, 'rows' => array(array(array('data' => t('No blocks are defined.'), 'colspan' => 4)))));
   }
 
   return $output;
@@ -98,7 +101,7 @@ function thisdayinhistory_blocks_configure_validate($form, &$form_state) {
   if (!$name) {
     form_set_error('name', t('You must specify a valid block name.'));
   }
-  else if (db_result(db_query("SELECT COUNT(*) FROM {thisdayinhistory_blocks} tdihb WHERE tdihb.name = '%s'", $name))) {
+  else if (db_query("SELECT COUNT(*) FROM {thisdayinhistory_blocks} tdihb WHERE tdihb.name = :name", array(':name' => $name))->fetchField()) {
     form_set_error('name', t('The block name %name already exists. Please choose another block name.', array('%name' => $name)));
   }
 }
@@ -110,7 +113,7 @@ function thisdayinhistory_blocks_configure_validate($form, &$form_state) {
 function thisdayinhistory_blocks_configure_submit($form, &$form_state) {
   db_query("INSERT INTO {thisdayinhistory_blocks}
     (name, block_type, nid_filter, rid_filter, uid_filter, tid_filter, vid, header, header_format)
-    VALUES ('%s', 0, '', '', '', '', 0, '', 0)", trim($form_state['values']['name']));
+    VALUES (:name, 0, '', '', '', '', 0, '', 0)", array(':name' => trim($form_state['values']['name'])));
 }
 
 
@@ -118,7 +121,7 @@ function thisdayinhistory_blocks_configure_submit($form, &$form_state) {
  * Confirms the deletion a block.
  */
 function thisdayinhistory_block_delete_confirmation($form_state, $bid) {
-  $block = db_fetch_object(db_query('SELECT tdihb.name FROM {thisdayinhistory_blocks} tdihb WHERE tdihb.bid = %d', $bid));
+  $block = db_query('SELECT tdihb.name FROM {thisdayinhistory_blocks} tdihb WHERE tdihb.bid = :bid', array(':bid' => $bid))->fetch();
 
   $form = array();
   $form['bid'] = array(
@@ -137,7 +140,7 @@ function thisdayinhistory_block_delete_confirmation($form_state, $bid) {
  * Deletes the specified block.
  */
 function thisdayinhistory_block_delete_confirmation_submit($form, &$form_state) {
-  db_query("DELETE FROM {thisdayinhistory_blocks} WHERE bid = %d", $form_state['values']['bid']);
+  db_query("DELETE FROM {thisdayinhistory_blocks} WHERE bid = :bid", array(':bid' => $form_state['values']['bid']));
   drupal_set_message(t('The block %name has been removed.', array('%name' => $form_state['values']['block_name'])));
   cache_clear_all();
 
